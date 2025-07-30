@@ -9,9 +9,14 @@ import { Separator } from "@/components/ui/separator";
 import { useToast } from "@/hooks/use-toast";
 import { ArrowLeft } from "lucide-react";
 import Navbar from "@/components/Navbar";
+import { supabase } from "@/integrations/supabase/client";
+import type { User, Session } from "@supabase/supabase-js";
 
 const Login = () => {
   const [isLogin, setIsLogin] = useState(true);
+  const [loading, setLoading] = useState(false);
+  const [user, setUser] = useState<User | null>(null);
+  const [session, setSession] = useState<Session | null>(null);
   const navigate = useNavigate();
   const location = useLocation();
   const { toast } = useToast();
@@ -23,20 +28,146 @@ const Login = () => {
     }
   }, [location]);
 
-  const handleSubmit = (e: React.FormEvent) => {
-    e.preventDefault();
-    toast({
-      title: isLogin ? "Logged in successfully!" : "Account created successfully!",
-      description: "Welcome to our platform.",
+  // Auth state management
+  useEffect(() => {
+    // Set up auth state listener
+    const { data: { subscription } } = supabase.auth.onAuthStateChange(
+      (event, session) => {
+        setSession(session);
+        setUser(session?.user ?? null);
+        
+        // Redirect authenticated users to home
+        if (session?.user) {
+          navigate("/");
+        }
+      }
+    );
+
+    // Check for existing session
+    supabase.auth.getSession().then(({ data: { session } }) => {
+      setSession(session);
+      setUser(session?.user ?? null);
+      
+      // Redirect if already authenticated
+      if (session?.user) {
+        navigate("/");
+      }
     });
-    navigate("/");
+
+    return () => subscription.unsubscribe();
+  }, [navigate]);
+
+  const handleSubmit = async (e: React.FormEvent) => {
+    e.preventDefault();
+    setLoading(true);
+
+    const formData = new FormData(e.target as HTMLFormElement);
+    const email = formData.get('email') as string;
+    const password = formData.get('password') as string;
+    const fullName = formData.get('name') as string;
+    const phone = formData.get('phone') as string;
+    const userType = formData.get('userType') as string;
+
+    try {
+      if (isLogin) {
+        // Sign in
+        const { error } = await supabase.auth.signInWithPassword({
+          email,
+          password,
+        });
+
+        if (error) {
+          toast({
+            title: "Sign in failed",
+            description: error.message,
+            variant: "destructive",
+          });
+        } else {
+          toast({
+            title: "Welcome back!",
+            description: "Successfully signed in.",
+          });
+        }
+      } else {
+        // Sign up
+        const redirectUrl = `${window.location.origin}/`;
+        
+        const { error } = await supabase.auth.signUp({
+          email,
+          password,
+          options: {
+            emailRedirectTo: redirectUrl,
+            data: {
+              full_name: fullName,
+              phone: phone,
+              user_type: userType,
+            }
+          }
+        });
+
+        if (error) {
+          toast({
+            title: "Sign up failed",
+            description: error.message,
+            variant: "destructive",
+          });
+        } else {
+          toast({
+            title: "Account created!",
+            description: "Please check your email to verify your account.",
+          });
+        }
+      }
+    } catch (error) {
+      toast({
+        title: "An error occurred",
+        description: "Please try again later.",
+        variant: "destructive",
+      });
+    } finally {
+      setLoading(false);
+    }
   };
 
-  const handleForgotPassword = () => {
-    toast({
-      title: "Password reset email sent",
-      description: "Check your email for reset instructions.",
-    });
+  const handleForgotPassword = async () => {
+    const email = (document.getElementById('email') as HTMLInputElement)?.value;
+    
+    if (!email) {
+      toast({
+        title: "Email required",
+        description: "Please enter your email address first.",
+        variant: "destructive",
+      });
+      return;
+    }
+
+    setLoading(true);
+    try {
+      const { error } = await supabase.auth.resetPasswordForEmail(email, {
+        redirectTo: `${window.location.origin}/login`,
+      });
+
+      if (error) {
+        toast({
+          title: "Error sending reset email",
+          description: error.message,
+          variant: "destructive",
+        });
+      } else {
+        toast({
+          title: "Password reset email sent",
+          description: "Check your email for reset instructions.",
+        });
+      }
+    } catch (error) {
+      toast({
+        title: "An error occurred",
+        description: "Please try again later.",
+        variant: "destructive",
+      });
+    } finally {
+      setLoading(false);
+    }
   };
 
   return (
@@ -72,6 +203,7 @@ const Login = () => {
                 <Label htmlFor="name">Full Name</Label>
                 <Input
                   id="name"
+                  name="name"
                   type="text"
                   placeholder="Enter your full name"
                   required
@@ -83,6 +215,7 @@ const Login = () => {
               <Label htmlFor="email">Email</Label>
               <Input
                 id="email"
+                name="email"
                 type="email"
                 placeholder="Enter your email"
                 required
@@ -94,6 +227,7 @@ const Login = () => {
                 <Label htmlFor="phone">Phone Number</Label>
                 <Input
                   id="phone"
+                  name="phone"
                   type="tel"
                   placeholder="Enter your phone number"
                   required
@@ -105,6 +239,7 @@ const Login = () => {
               <Label htmlFor="password">Password</Label>
               <Input
                 id="password"
+                name="password"
                 type="password"
                 placeholder="Enter your password"
                 required
@@ -114,7 +249,7 @@ const Login = () => {
             {!isLogin && (
               <div className="space-y-2">
                 <Label htmlFor="userType">I am a</Label>
-                <Select required>
+                <Select name="userType" required>
                   <SelectTrigger>
                     <SelectValue placeholder="Select user type" />
                   </SelectTrigger>
@@ -127,8 +262,8 @@ const Login = () => {
               </div>
             )}
 
-            <Button type="submit" className="w-full" size="lg">
-              {isLogin ? "🔐 Log In" : "📝 Create Account"}
+            <Button type="submit" className="w-full" size="lg" disabled={loading}>
+              {loading ? "⏳ Processing..." : (isLogin ? "🔐 Log In" : "📝 Create Account")}
             </Button>
 
             {isLogin && (

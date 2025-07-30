@@ -1,5 +1,5 @@
 import { useParams, useNavigate } from "react-router-dom";
-import { useState } from "react";
+import { useState, useEffect } from "react";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import { Card, CardContent } from "@/components/ui/card";
@@ -28,10 +28,26 @@ import {
   ShoppingCart,
   Bus
 } from "lucide-react";
-import { allListings } from "@/data/listings";
+import { supabase } from "@/integrations/supabase/client";
 import Navbar from "@/components/Navbar";
 import Footer from "@/components/Footer";
 import { useToast } from "@/hooks/use-toast";
+
+type Property = {
+  id: string;
+  title: string;
+  location: string;
+  price: number;
+  bedrooms: number;
+  bathrooms: number;
+  square_feet: number;
+  images: string[];
+  listing_type: string;
+  property_type: string;
+  amenities: string[];
+  nearby_schools: boolean;
+  description?: string;
+};
 
 const ListingDetails = () => {
   const { id } = useParams();
@@ -39,8 +55,52 @@ const ListingDetails = () => {
   const { toast } = useToast();
   const [currentImageIndex, setCurrentImageIndex] = useState(0);
   const [isSaved, setIsSaved] = useState(false);
+  const [listing, setListing] = useState<Property | null>(null);
+  const [loading, setLoading] = useState(true);
 
-  const listing = allListings.find(l => l.id === parseInt(id || "0"));
+  useEffect(() => {
+    const fetchProperty = async () => {
+      if (!id) return;
+      
+      try {
+        const { data, error } = await supabase
+          .from('properties')
+          .select('*')
+          .eq('id', id)
+          .eq('status', 'active')
+          .single();
+
+        if (error) throw error;
+        setListing(data);
+      } catch (error) {
+        console.error('Error fetching property:', error);
+      } finally {
+        setLoading(false);
+      }
+    };
+
+    fetchProperty();
+  }, [id]);
+
+  if (loading) {
+    return (
+      <div className="min-h-screen bg-background">
+        <Navbar />
+        <div className="container mx-auto px-4 py-20">
+          <div className="animate-pulse">
+            <div className="h-8 bg-gray-200 rounded mb-4 w-1/4"></div>
+            <div className="h-96 bg-gray-200 rounded mb-4"></div>
+            <div className="grid grid-cols-1 lg:grid-cols-3 gap-8">
+              <div className="lg:col-span-2">
+                <div className="h-6 bg-gray-200 rounded mb-2"></div>
+                <div className="h-4 bg-gray-200 rounded mb-4"></div>
+              </div>
+            </div>
+          </div>
+        </div>
+      </div>
+    );
+  }
 
   if (!listing) {
     return (
@@ -53,14 +113,19 @@ const ListingDetails = () => {
     );
   }
 
-  // Mock additional images for gallery
-  const galleryImages = [
-    listing.image,
-    "https://images.unsplash.com/photo-1721322800607-8c38375eef04?w=800&h=600&fit=crop",
-    "https://images.unsplash.com/photo-1483058712412-4245e9b90334?w=800&h=600&fit=crop",
-    "https://images.unsplash.com/photo-1487958449943-2429e8be8625?w=800&h=600&fit=crop",
-    "https://images.unsplash.com/photo-1518005020951-eccb494ad742?w=800&h=600&fit=crop",
-  ];
+  // Use images from database or fallback to placeholder
+  const galleryImages = listing.images && listing.images.length > 0 
+    ? listing.images 
+    : [
+        "/placeholder.svg",
+        "https://images.unsplash.com/photo-1721322800607-8c38375eef04?w=800&h=600&fit=crop",
+        "https://images.unsplash.com/photo-1483058712412-4245e9b90334?w=800&h=600&fit=crop",
+        "https://images.unsplash.com/photo-1487958449943-2429e8be8625?w=800&h=600&fit=crop"
+      ];
+
+  const priceDisplay = listing.listing_type === 'Buy' 
+    ? `$${listing.price?.toLocaleString()}` 
+    : `$${listing.price?.toLocaleString()}/month`;
 
   const amenityIcons = {
     parking: Car,
@@ -121,7 +186,7 @@ const ListingDetails = () => {
                 <span>{listing.location}</span>
               </div>
               <div className="text-2xl font-bold text-primary">
-                {listing.priceDisplay}
+                {priceDisplay}
               </div>
             </div>
             
@@ -232,20 +297,20 @@ const ListingDetails = () => {
               <CardContent className="p-6">
                 <h2 className="text-2xl font-bold mb-6">Property Overview</h2>
                 
-                <div className="grid grid-cols-2 lg:grid-cols-4 gap-6 mb-6">
+                 <div className="grid grid-cols-2 lg:grid-cols-4 gap-6 mb-6">
                   <div className="text-center">
                     <Bed className="h-8 w-8 mx-auto mb-2 text-primary" />
-                    <div className="font-semibold">{listing.beds}</div>
+                    <div className="font-semibold">{listing.bedrooms}</div>
                     <div className="text-sm text-muted-foreground">Bedrooms</div>
                   </div>
                   <div className="text-center">
                     <Bath className="h-8 w-8 mx-auto mb-2 text-primary" />
-                    <div className="font-semibold">{listing.baths}</div>
+                    <div className="font-semibold">{listing.bathrooms}</div>
                     <div className="text-sm text-muted-foreground">Bathrooms</div>
                   </div>
                   <div className="text-center">
                     <Square className="h-8 w-8 mx-auto mb-2 text-primary" />
-                    <div className="font-semibold">{listing.sqft}</div>
+                    <div className="font-semibold">{listing.square_feet}</div>
                     <div className="text-sm text-muted-foreground">Sq Ft</div>
                   </div>
                   <div className="text-center">
@@ -257,10 +322,10 @@ const ListingDetails = () => {
 
                 <Separator className="my-6" />
 
-                <div>
+                 <div>
                   <h3 className="font-semibold mb-3">Features & Amenities</h3>
                   <div className="grid grid-cols-2 lg:grid-cols-3 gap-3">
-                    {listing.amenities.map((amenity) => {
+                    {(listing.amenities || []).map((amenity) => {
                       const IconComponent = amenityIcons[amenity as keyof typeof amenityIcons] || Badge;
                       return (
                         <div key={amenity} className="flex items-center gap-2">
@@ -274,14 +339,14 @@ const ListingDetails = () => {
 
                 <Separator className="my-6" />
 
-                <div>
+                 <div>
                   <h3 className="font-semibold mb-3">Description</h3>
                   <p className="text-muted-foreground leading-relaxed">
-                    This beautiful {listing.propertyType} offers modern living in a prime location. 
-                    With {listing.beds} spacious bedrooms and {listing.baths} well-appointed bathrooms, 
+                    {listing.description || `This beautiful ${listing.property_type} offers modern living in a prime location. 
+                    With ${listing.bedrooms} spacious bedrooms and ${listing.bathrooms} well-appointed bathrooms, 
                     this property is perfect for families or individuals seeking comfort and convenience. 
-                    The {listing.sqft} square feet of living space is thoughtfully designed with modern 
-                    finishes and quality materials throughout.
+                    The ${listing.square_feet} square feet of living space is thoughtfully designed with modern 
+                    finishes and quality materials throughout.`}
                   </p>
                 </div>
               </CardContent>

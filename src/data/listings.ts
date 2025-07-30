@@ -26,11 +26,11 @@ export const allListings: Listing[] = [
     beds: 4,
     baths: 3,
     sqft: "2,500",
-    image: "/image-uploads/d191584e-0741-4edb-8fda-3ad629483420.png",
+    image: "/lovable-uploads/d191584e-0741-4edb-8fda-3ad629483420.png",
     type: "Buy",
     propertyType: "villa",
     amenities: ["parking", "garden"],
-    nearbySchools: true,
+    nearbySchools: true
   },
   {
     id: 2,
@@ -42,12 +42,11 @@ export const allListings: Listing[] = [
     beds: 4,
     baths: 3,
     sqft: "2,400",
-    image:
-      "https://images.unsplash.com/photo-1600596542815-ffad4c1539a9?w=800&h=600&fit=crop",
+    image: "https://images.unsplash.com/photo-1600596542815-ffad4c1539a9?w=800&h=600&fit=crop",
     type: "Buy",
     propertyType: "house",
     amenities: ["parking", "garden", "security"],
-    nearbySchools: true,
+    nearbySchools: true
   },
   {
     id: 3,
@@ -59,15 +58,14 @@ export const allListings: Listing[] = [
     beds: 3,
     baths: 2,
     sqft: "1,800",
-    image:
-      "https://images.unsplash.com/photo-1560448204-e02f11c3d0e2?w=800&h=600&fit=crop",
+    image: "https://images.unsplash.com/photo-1560448204-e02f11c3d0e2?w=800&h=600&fit=crop",
     type: "Rent",
     propertyType: "apartment",
     amenities: ["gym", "pool", "parking"],
-    nearbySchools: false,
+    nearbySchools: false
   },
   {
-    id: 3,
+    id: 11, // Fixed duplicate ID
     title: "Family Villa",
     location: "Sylhet, Shahjalal Upashahar",
     city: "sylhet",
@@ -76,12 +74,11 @@ export const allListings: Listing[] = [
     beds: 5,
     baths: 4,
     sqft: "3,200",
-    image:
-      "https://plus.unsplash.com/premium_photo-1661751356300-c4756372be3b?q=80&w=1170&auto=format&fit=crop&ixlib=rb-4.1.0&ixid=M3wxMjA3fDB8MHxwaG90by1wYWdlfHx8fGVufDB8fHx8fA%3D%3D",
+    image: "https://images.unsplash.com/photo-1599427303058-835c29da2569?w=800&h=600&fit=crop",
     type: "Buy",
     propertyType: "villa",
     amenities: ["garden", "pool", "security", "parking"],
-    nearbySchools: true,
+    nearbySchools: true
   },
   {
     id: 4,
@@ -93,12 +90,11 @@ export const allListings: Listing[] = [
     beds: 1,
     baths: 1,
     sqft: "650",
-    image:
-      "https://images.unsplash.com/photo-1522708323590-d24dbb6b0267?w=800&h=600&fit=crop",
+    image: "https://images.unsplash.com/photo-1522708323590-d24dbb6b0267?w=800&h=600&fit=crop",
     type: "Rent",
     propertyType: "studio",
     amenities: ["wifi", "furnished"],
-    nearbySchools: false,
+    nearbySchools: false
   },
   {
     id: 5,
@@ -110,12 +106,11 @@ export const allListings: Listing[] = [
     beds: 3,
     baths: 2,
     sqft: "1,500",
-    image:
-      "https://images.unsplash.com/photo-1545324418-cc1a3fa10c00?w=800&h=600&fit=crop",
+    image: "https://images.unsplash.com/photo-1545324418-cc1a3fa10c00?w=800&h=600&fit=crop",
     type: "Buy",
     propertyType: "apartment",
     amenities: ["gym", "security", "parking"],
-    nearbySchools: true,
+    nearbySchools: true
   },
   {
     id: 6,
@@ -127,12 +122,11 @@ export const allListings: Listing[] = [
     beds: 0,
     baths: 2,
     sqft: "4,000",
-    image:
-      "https://images.unsplash.com/photo-1524230572899-a752b3835840?w=800&h=600&fit=crop",
+    image: "https://images.unsplash.com/photo-1524230572899-a752b3835840?w=800&h=600&fit=crop",
     type: "Buy",
     propertyType: "commercial",
     amenities: ["parking", "security", "elevator"],
-    nearbySchools: false,
+    nearbySchools: false
   },
   {
     id: 7,
@@ -144,12 +138,11 @@ export const allListings: Listing[] = [
     beds: 2,
     baths: 1,
     sqft: "900",
-    image:
-      "https://images.unsplash.com/photo-1493809842364-78817add7ffb?w=800&h=600&fit=crop",
+    image: "https://images.unsplash.com/photo-1493809842364-78817add7ffb?w=800&h=600&fit=crop",
     type: "Rent",
     propertyType: "apartment",
     amenities: ["wifi", "furnished", "library"],
-    nearbySchools: true,
+    nearbySchools: true
   },
   {
     id: 8,
@@ -161,12 +154,11 @@ export const allListings: Listing[] = [
     beds: 2,
     baths: 2,
     sqft: "1,200",
-    image:
-      "https://images.unsplash.com/photo-1502672260266-1c1ef2d93688?w=800&h=600&fit=crop",
+    image: "https://images.unsplash.com/photo-1502672260266-1c1ef2d93688?w=800&h=600&fit=crop",
     type: "Rent",
     propertyType: "apartment",
     amenities: ["wifi", "furnished", "gym"],
-    nearbySchools: false,
+    nearbySchools: false
   },
   {
     id: 9,
@@ -178,12 +170,11 @@ export const allListings: Listing[] = [
     beds: 6,
     baths: 5,
     sqft: "4,500",
-    image:
-      "https://images.unsplash.com/photo-1564013799919-ab600027ffc6?w=800&h=600&fit=crop",
+    image: "https://images.unsplash.com/photo-1564013799919-ab600027ffc6?w=800&h=600&fit=crop",
     type: "Buy",
     propertyType: "villa",
     amenities: ["beachfront", "pool", "garden", "parking"],
-    nearbySchools: false,
+    nearbySchools: false
   },
   {
     id: 10,
@@ -195,19 +186,16 @@ export const allListings: Listing[] = [
     beds: 2,
     baths: 1,
     sqft: "800",
-    image:
-      "https://images.unsplash.com/photo-1529408632839-a54952c491e5?w=800&h=600&fit=crop",
+    image: "https://images.unsplash.com/photo-1529408632839-a54952c491e5?w=800&h=600&fit=crop",
     type: "Rent",
     propertyType: "apartment",
     amenities: ["parking"],
-    nearbySchools: true,
-  },
+    nearbySchools: true
+  }
 ];
 
-export const getBuyListings = () =>
-  allListings.filter((listing) => listing.type === "Buy");
-export const getRentListings = () =>
-  allListings.filter((listing) => listing.type === "Rent");
+export const getBuyListings = () => allListings.filter(listing => listing.type === "Buy");
+export const getRentListings = () => allListings.filter(listing => listing.type === "Rent");
 
 export const filterListings = (
   listings: Listing[],
@@ -220,7 +208,7 @@ export const filterListings = (
     nearbySchools?: boolean;
   }
 ) => {
-  return listings.filter((listing) => {
+  return listings.filter(listing => {
     // City filter
     if (filters.city && listing.city !== filters.city) {
       return false;

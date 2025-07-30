@@ -3,12 +3,82 @@ import { Button } from "@/components/ui/button";
 import { useNavigate } from "react-router-dom";
 import { Card, CardContent } from "@/components/ui/card";
 import { MapPin, Bed, Bath, Square } from "lucide-react";
-import { allListings } from "@/data/listings";
+import { supabase } from "@/integrations/supabase/client";
+import { useEffect, useState } from "react";
 
 const FeaturedListings = () => {
   const navigate = useNavigate();
-  // Show first 4 listings as featured
-  const listings = allListings.slice(0, 4);
+  const [listings, setListings] = useState<any[]>([]);
+  const [loading, setLoading] = useState(true);
+
+  useEffect(() => {
+    const fetchFeaturedProperties = async () => {
+      try {
+        const { data, error } = await supabase
+          .from('properties')
+          .select('*')
+          .eq('status', 'active')
+          .limit(4);
+
+        if (error) throw error;
+
+        const formattedListings = data?.map(property => ({
+          id: property.id,
+          title: property.title,
+          location: property.location,
+          price: property.price,
+          beds: property.bedrooms,
+          baths: property.bathrooms,
+          sqft: property.square_feet,
+          image: property.images?.[0] || '/placeholder.svg',
+          type: property.listing_type,
+          propertyType: property.property_type,
+          amenities: property.amenities || [],
+          nearbySchools: property.nearby_schools,
+          priceDisplay: property.listing_type === 'Buy' 
+            ? `$${property.price?.toLocaleString()}` 
+            : `$${property.price?.toLocaleString()}/month`
+        })) || [];
+
+        setListings(formattedListings);
+      } catch (error) {
+        console.error('Error fetching properties:', error);
+      } finally {
+        setLoading(false);
+      }
+    };
+
+    fetchFeaturedProperties();
+  }, []);
+
+  if (loading) {
+    return (
+      <section className="py-20 bg-white">
+        <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
+          <div className="text-center mb-16">
+            <h2 className="text-3xl md:text-4xl font-bold text-gray-900 mb-4">
+              Featured Listings
+            </h2>
+            <p className="text-xl text-gray-600">
+              Discover our handpicked selection of premium properties
+            </p>
+          </div>
+          <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6 mb-12">
+            {[...Array(4)].map((_, i) => (
+              <Card key={i} className="overflow-hidden animate-pulse">
+                <div className="h-48 bg-gray-200"></div>
+                <CardContent className="p-4">
+                  <div className="h-4 bg-gray-200 rounded mb-2"></div>
+                  <div className="h-3 bg-gray-200 rounded mb-3"></div>
+                  <div className="h-3 bg-gray-200 rounded"></div>
+                </CardContent>
+              </Card>
+            ))}
+          </div>
+        </div>
+      </section>
+    );
+  }
 
   return (
     <section className="py-20 bg-white">

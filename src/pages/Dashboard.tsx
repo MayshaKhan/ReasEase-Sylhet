@@ -1,4 +1,6 @@
 import { useState } from "react";
+import ReactQuill from 'react-quill';
+import 'react-quill/dist/quill.snow.css';
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Input } from "@/components/ui/input";
@@ -8,6 +10,7 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@
 import { Checkbox } from "@/components/ui/checkbox";
 import { Badge } from "@/components/ui/badge";
 import { Separator } from "@/components/ui/separator";
+import { useToast } from "@/hooks/use-toast";
 import { 
   Home, 
   PenTool, 
@@ -25,10 +28,36 @@ import {
 } from "lucide-react";
 import { allListings } from "@/data/listings";
 import { useNavigate } from "react-router-dom";
+import { useAuth } from "@/hooks/useAuth";
+import UserAvatar from "@/components/UserAvatar";
+import { supabase } from "@/integrations/supabase/client";
 
 const Dashboard = () => {
   const [activeTab, setActiveTab] = useState("list-property");
+  const [loading, setLoading] = useState(false);
+  const [propertyImages, setPropertyImages] = useState<File[]>([]);
+  const [blogImage, setBlogImage] = useState<File | null>(null);
+  const [blogSlug, setBlogSlug] = useState("");
+  const [blogContent, setBlogContent] = useState("");
+
+  // Function to slugify title
+  const slugify = (text: string) => {
+    return text
+      .toLowerCase()
+      .trim()
+      .replace(/[^\w\s-]/g, '') // Remove special characters
+      .replace(/[\s_-]+/g, '-') // Replace spaces and underscores with hyphens
+      .replace(/^-+|-+$/g, ''); // Remove leading/trailing hyphens
+  };
+
+  // Handle title change and auto-generate slug
+  const handleTitleChange = (e: React.ChangeEvent<HTMLInputElement>) => {
+    const title = e.target.value;
+    setBlogSlug(slugify(title));
+  };
   const navigate = useNavigate();
+  const { user, profile, signOut } = useAuth();
+  const { toast } = useToast();
 
   const favoriteListings = allListings.slice(0, 6); // Mock favorites
 
@@ -43,8 +72,187 @@ const Dashboard = () => {
     "elevator", "library", "beachfront"
   ];
 
-  const handleLogout = () => {
+  const handleLogout = async () => {
+    await signOut();
     navigate("/");
+  };
+
+  const uploadImages = async (files: File[], bucket: string, userId: string): Promise<string[]> => {
+    const uploadedUrls: string[] = [];
+    
+    for (const file of files) {
+      const fileExt = file.name.split('.').pop();
+      const fileName = `${userId}/${Date.now()}-${Math.random().toString(36).substring(2)}.${fileExt}`;
+      
+      const { data, error } = await supabase.storage
+        .from(bucket)
+        .upload(fileName, file);
+      
+      if (error) {
+        console.error('Upload error:', error);
+        throw error;
+      }
+      
+      const { data: { publicUrl } } = supabase.storage
+        .from(bucket)
+        .getPublicUrl(data.path);
+      
+      uploadedUrls.push(publicUrl);
+    }
+    
+    return uploadedUrls;
+  };
+
+  const handlePropertySubmit = async (e: React.FormEvent) => {
+    e.preventDefault();
+    setLoading(true);
+
+    // Validate required images
+    if (propertyImages.length === 0) {
+      toast({
+        title: "Images Required",
+        description: "Please upload at least one property image.",
+        variant: "destructive",
+      });
+      setLoading(false);
+      return;
+    }
+
+    const formData = new FormData(e.target as HTMLFormElement);
+    const amenitiesArray = amenitiesOptions.filter(amenity => 
+      formData.get(amenity) === 'on'
+    );
+
+    try {
+      let imageUrls: string[] = [];
+      
+      // Upload images
+      if (user?.id) {
+        imageUrls = await uploadImages(propertyImages, 'property-images', user.id);
+      }
+
+      const { error } = await supabase
+        .from('properties')
+        .insert([
+          {
+            user_id: user?.id,
+            title: formData.get('title') as string,
+            location: formData.get('location') as string,
+            city: formData.get('city') as string,
+            property_type: formData.get('propertyType') as string,
+            bedrooms: parseInt(formData.get('beds') as string) || 0,
+            bathrooms: parseInt(formData.get('baths') as string) || 0,
+            square_feet: parseInt(formData.get('sqft') as string) || null,
+            listing_type: formData.get('type') as string,
+            price: parseFloat(formData.get('price') as string),
+            amenities: amenitiesArray,
+            nearby_schools: formData.get('nearbySchools') === 'on',
+            images: imageUrls,
+          }
+        ]);
+
+      if (error) {
+        throw error;
+      }
+
+      toast({
+        title: "Property Listed!",
+        description: "Your property has been successfully listed.",
+      });
+
+      // Reset form and images
+      (e.target as HTMLFormElement).reset();
+      setPropertyImages([]);
+    } catch (error) {
+      console.error('Error listing property:', error);
+      toast({
+        title: "Error",
+        description: "Failed to list property. Please try again.",
+        variant: "destructive",
+      });
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  const handleBlogSubmit = async (e: React.FormEvent) => {
+    e.preventDefault();
+    setLoading(true);
+
+    // Validate required featured image
+    if (!blogImage) {
+      toast({
+        title: "Featured Image Required",
+        description: "Please upload a featured image for your blog post.",
+        variant: "destructive",
+      });
+      setLoading(false);
+      return;
+    }
+
+    // Validate required content
+    if (!blogContent.trim()) {
+      toast({
+        title: "Content Required",
+        description: "Please write some content for your blog post.",
+        variant: "destructive",
+      });
+      setLoading(false);
+      return;
+    }
+
+    const formData = new FormData(e.target as HTMLFormElement);
+
+    try {
+      let featuredImageUrl: string | null = null;
+      
+      // Upload featured image
+      if (user?.id) {
+        const imageUrls = await uploadImages([blogImage], 'blog-images', user.id);
+        featuredImageUrl = imageUrls[0];
+      }
+
+      const { error } = await supabase
+        .from('blogs')
+        .insert([
+          {
+            user_id: user?.id,
+            title: formData.get('blogTitle') as string,
+            slug: formData.get('slug') as string,
+            excerpt: formData.get('excerpt') as string,
+            content: blogContent,
+            category: formData.get('category') as string,
+            author: profile?.full_name || 'User',
+            read_time: formData.get('readTime') as string,
+            is_featured: formData.get('featured') === 'on',
+            featured_image: featuredImageUrl,
+          }
+        ]);
+
+      if (error) {
+        throw error;
+      }
+
+      toast({
+        title: "Blog Published!",
+        description: "Your blog post has been successfully published.",
+      });
+
+      // Reset form and image
+      (e.target as HTMLFormElement).reset();
+      setBlogImage(null);
+      setBlogSlug("");
+      setBlogContent("");
+    } catch (error) {
+      console.error('Error publishing blog:', error);
+      toast({
+        title: "Error",
+        description: "Failed to publish blog. Please try again.",
+        variant: "destructive",
+      });
+    } finally {
+      setLoading(false);
+    }
   };
 
   return (
@@ -52,7 +260,21 @@ const Dashboard = () => {
       {/* Sidebar */}
       <div className="w-64 bg-white shadow-lg fixed h-full flex flex-col">
         <div className="p-6 border-b">
-          <h2 className="text-xl font-bold text-gray-900">Dashboard</h2>
+          <div className="flex items-center space-x-3">
+            <UserAvatar 
+              avatarUrl={profile?.avatar_url} 
+              fullName={profile?.full_name}
+              size="md"
+            />
+            <div>
+              <h2 className="text-lg font-bold text-gray-900">
+                {profile?.full_name || "User"}
+              </h2>
+              <p className="text-sm text-gray-500 capitalize">
+                {profile?.user_type || "User"}
+              </p>
+            </div>
+          </div>
         </div>
         
         <nav className="mt-6 flex-1 overflow-y-auto">
@@ -101,24 +323,25 @@ const Dashboard = () => {
               <CardHeader>
                 <CardTitle>Property Details</CardTitle>
               </CardHeader>
-              <CardContent className="space-y-6">
-                {/* Basic Information */}
-                <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-                  <div className="space-y-2">
-                    <Label htmlFor="title">Property Title</Label>
-                    <Input id="title" placeholder="e.g., Modern 3-Bedroom Flat in Banani" />
+              <CardContent>
+                <form onSubmit={handlePropertySubmit} className="space-y-6">
+                  {/* Basic Information */}
+                  <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                   <div className="space-y-2">
+                    <Label htmlFor="title">Property Title *</Label>
+                    <Input id="title" name="title" placeholder="e.g., Modern 3-Bedroom Flat in Banani" required />
                   </div>
                   
                   <div className="space-y-2">
-                    <Label htmlFor="location">Location</Label>
-                    <Input id="location" placeholder="e.g., Dhaka, Gulshan" />
+                    <Label htmlFor="location">Location *</Label>
+                    <Input id="location" name="location" placeholder="e.g., Dhaka, Gulshan" required />
                   </div>
                 </div>
 
                 <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
                   <div className="space-y-2">
-                    <Label htmlFor="city">City</Label>
-                    <Select>
+                    <Label htmlFor="city">City *</Label>
+                    <Select name="city" required>
                       <SelectTrigger>
                         <SelectValue placeholder="Select city" />
                       </SelectTrigger>
@@ -132,8 +355,8 @@ const Dashboard = () => {
                   </div>
 
                   <div className="space-y-2">
-                    <Label htmlFor="propertyType">Property Type</Label>
-                    <Select>
+                    <Label htmlFor="propertyType">Property Type *</Label>
+                    <Select name="propertyType" required>
                       <SelectTrigger>
                         <SelectValue placeholder="Select property type" />
                       </SelectTrigger>
@@ -152,20 +375,20 @@ const Dashboard = () => {
                 <Separator />
                 <h3 className="text-lg font-semibold">Property Specifications</h3>
                 
-                <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+                 <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
                   <div className="space-y-2">
-                    <Label htmlFor="beds">Bedrooms</Label>
-                    <Input id="beds" type="number" placeholder="0" />
+                    <Label htmlFor="beds">Bedrooms *</Label>
+                    <Input id="beds" name="beds" type="number" min="0" placeholder="0" required />
                   </div>
                   
                   <div className="space-y-2">
-                    <Label htmlFor="baths">Bathrooms</Label>
-                    <Input id="baths" type="number" placeholder="0" />
+                    <Label htmlFor="baths">Bathrooms *</Label>
+                    <Input id="baths" name="baths" type="number" min="0" placeholder="0" required />
                   </div>
                   
                   <div className="space-y-2">
                     <Label htmlFor="sqft">Square Feet</Label>
-                    <Input id="sqft" placeholder="e.g., 2,500" />
+                    <Input id="sqft" name="sqft" type="number" min="0" placeholder="e.g., 2500" />
                   </div>
                 </div>
 
@@ -175,8 +398,8 @@ const Dashboard = () => {
                 
                 <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
                   <div className="space-y-2">
-                    <Label htmlFor="type">Listing Type</Label>
-                    <Select>
+                    <Label htmlFor="type">Listing Type *</Label>
+                    <Select name="type" required>
                       <SelectTrigger>
                         <SelectValue placeholder="Select listing type" />
                       </SelectTrigger>
@@ -188,8 +411,8 @@ const Dashboard = () => {
                   </div>
                   
                   <div className="space-y-2">
-                    <Label htmlFor="price">Price</Label>
-                    <Input id="price" type="number" placeholder="Enter price" />
+                    <Label htmlFor="price">Price *</Label>
+                    <Input id="price" name="price" type="number" min="0" step="0.01" placeholder="Enter price" required />
                   </div>
                 </div>
 
@@ -198,38 +421,64 @@ const Dashboard = () => {
                 <h3 className="text-lg font-semibold">Amenities</h3>
                 
                 <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-4 gap-3">
-                  {amenitiesOptions.map((amenity) => (
-                    <div key={amenity} className="flex items-center space-x-2">
-                      <Checkbox id={amenity} />
-                      <Label htmlFor={amenity} className="text-sm capitalize">
-                        {amenity}
-                      </Label>
-                    </div>
-                  ))}
+                   {amenitiesOptions.map((amenity) => (
+                     <div key={amenity} className="flex items-center space-x-2">
+                       <Checkbox id={amenity} name={amenity} />
+                       <Label htmlFor={amenity} className="text-sm capitalize">
+                         {amenity}
+                       </Label>
+                     </div>
+                   ))}
                 </div>
 
                 {/* Additional Features */}
-                <div className="flex items-center space-x-2">
-                  <Checkbox id="nearbySchools" />
-                  <Label htmlFor="nearbySchools">Nearby Schools</Label>
-                </div>
+                 <div className="flex items-center space-x-2">
+                   <Checkbox id="nearbySchools" name="nearbySchools" />
+                   <Label htmlFor="nearbySchools">Nearby Schools</Label>
+                 </div>
 
                 {/* Image Upload */}
                 <Separator />
-                <h3 className="text-lg font-semibold">Property Images</h3>
+                <h3 className="text-lg font-semibold">Property Images *</h3>
                 
                 <div className="border-2 border-dashed border-gray-300 rounded-lg p-6 text-center">
                   <Upload className="w-12 h-12 text-gray-400 mx-auto mb-4" />
-                  <p className="text-gray-600 mb-2">Upload property images</p>
+                  <p className="text-gray-600 mb-2">Upload property images (Required)</p>
                   <p className="text-sm text-gray-500">PNG, JPG up to 10MB each</p>
-                  <Button variant="outline" className="mt-4">
+                  <input 
+                    type="file" 
+                    multiple 
+                    accept="image/*"
+                    onChange={(e) => {
+                      const files = Array.from(e.target.files || []);
+                      setPropertyImages(files);
+                    }}
+                    style={{ display: 'none' }}
+                    id="property-images"
+                  />
+                  <Button 
+                    type="button"
+                    variant="outline" 
+                    className="mt-4"
+                    onClick={() => document.getElementById('property-images')?.click()}
+                  >
                     Choose Files
                   </Button>
+                  {propertyImages.length > 0 && (
+                    <p className="text-sm text-green-600 mt-2">
+                      {propertyImages.length} image(s) selected
+                    </p>
+                  )}
                 </div>
 
-                <Button className="w-full bg-orange-600 hover:bg-orange-700">
-                  List Property
-                </Button>
+                  <Button 
+                    type="submit" 
+                    className="w-full bg-orange-600 hover:bg-orange-700"
+                    disabled={loading}
+                  >
+                    {loading ? "Listing Property..." : "List Property"}
+                  </Button>
+                </form>
               </CardContent>
             </Card>
           </div>
@@ -243,21 +492,35 @@ const Dashboard = () => {
               <CardHeader>
                 <CardTitle>Blog Details</CardTitle>
               </CardHeader>
-              <CardContent className="space-y-6">
-                <div className="space-y-2">
-                  <Label htmlFor="blogTitle">Blog Title</Label>
-                  <Input id="blogTitle" placeholder="Enter blog title" />
+              <CardContent>
+                <form onSubmit={handleBlogSubmit} className="space-y-6">
+                  <div className="space-y-2">
+                  <Label htmlFor="blogTitle">Blog Title *</Label>
+                  <Input 
+                    id="blogTitle" 
+                    name="blogTitle" 
+                    placeholder="Enter blog title" 
+                    onChange={handleTitleChange}
+                    required 
+                  />
                 </div>
 
                 <div className="space-y-2">
-                  <Label htmlFor="slug">URL Slug</Label>
-                  <Input id="slug" placeholder="blog-url-slug" />
+                  <Label htmlFor="slug">URL Slug *</Label>
+                  <Input 
+                    id="slug" 
+                    name="slug" 
+                    placeholder="blog-url-slug" 
+                    value={blogSlug}
+                    onChange={(e) => setBlogSlug(e.target.value)}
+                    required 
+                  />
                 </div>
 
                 <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
                   <div className="space-y-2">
-                    <Label htmlFor="category">Category</Label>
-                    <Select>
+                    <Label htmlFor="category">Category *</Label>
+                    <Select name="category" required>
                       <SelectTrigger>
                         <SelectValue placeholder="Select category" />
                       </SelectTrigger>
@@ -272,49 +535,81 @@ const Dashboard = () => {
                   </div>
 
                   <div className="space-y-2">
-                    <Label htmlFor="author">Author</Label>
-                    <Input id="author" placeholder="Author name" />
+                    <Label htmlFor="readTime">Read Time *</Label>
+                    <Input id="readTime" name="readTime" placeholder="e.g., 5 min read" required />
                   </div>
                 </div>
 
-                <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-                  <div className="space-y-2">
-                    <Label htmlFor="readTime">Read Time</Label>
-                    <Input id="readTime" placeholder="e.g., 5 min read" />
-                  </div>
+                <div className="flex items-center space-x-2">
+                  <Checkbox id="featured" name="featured" />
+                  <Label htmlFor="featured">Featured Post</Label>
+                </div>
 
-                  <div className="flex items-center space-x-2">
-                    <Checkbox id="featured" />
-                    <Label htmlFor="featured">Featured Post</Label>
+                <div className="space-y-2">
+                  <Label htmlFor="excerpt">Excerpt *</Label>
+                  <Textarea id="excerpt" name="excerpt" placeholder="Brief description of the blog post" required />
+                </div>
+
+                <div className="space-y-2">
+                  <Label>Content *</Label>
+                  <div className="min-h-[400px]">
+                    <ReactQuill
+                      theme="snow"
+                      value={blogContent}
+                      onChange={setBlogContent}
+                      placeholder="Write your blog content here..."
+                      className="h-[350px] mb-12"
+                      modules={{
+                        toolbar: [
+                          [{ 'header': [1, 2, 3, false] }],
+                          ['bold', 'italic', 'underline'],
+                          [{ 'list': 'ordered'}, { 'list': 'bullet' }],
+                          ['link', 'image'],
+                          ['clean']
+                        ],
+                      }}
+                    />
                   </div>
                 </div>
 
                 <div className="space-y-2">
-                  <Label htmlFor="excerpt">Excerpt</Label>
-                  <Textarea id="excerpt" placeholder="Brief description of the blog post" />
-                </div>
-
-                <div className="space-y-2">
-                  <Label htmlFor="content">Content</Label>
-                  <Textarea 
-                    id="content" 
-                    placeholder="Write your blog content here (HTML supported)" 
-                    className="min-h-[200px]"
-                  />
-                </div>
-
-                <div className="space-y-2">
-                  <Label>Featured Image</Label>
+                  <Label>Featured Image *</Label>
                   <div className="border-2 border-dashed border-gray-300 rounded-lg p-6 text-center">
                     <Upload className="w-12 h-12 text-gray-400 mx-auto mb-4" />
-                    <p className="text-gray-600 mb-2">Upload featured image</p>
-                    <Button variant="outline">Choose Image</Button>
+                    <p className="text-gray-600 mb-2">Upload featured image (Required)</p>
+                    <input 
+                      type="file" 
+                      accept="image/*"
+                      onChange={(e) => {
+                        const file = e.target.files?.[0] || null;
+                        setBlogImage(file);
+                      }}
+                      style={{ display: 'none' }}
+                      id="blog-image"
+                    />
+                    <Button 
+                      type="button"
+                      variant="outline"
+                      onClick={() => document.getElementById('blog-image')?.click()}
+                    >
+                      Choose Image
+                    </Button>
+                    {blogImage && (
+                      <p className="text-sm text-green-600 mt-2">
+                        Image selected: {blogImage.name}
+                      </p>
+                    )}
                   </div>
                 </div>
 
-                <Button className="w-full bg-orange-600 hover:bg-orange-700">
-                  Publish Blog Post
-                </Button>
+                  <Button 
+                    type="submit" 
+                    className="w-full bg-orange-600 hover:bg-orange-700"
+                    disabled={loading}
+                  >
+                    {loading ? "Publishing..." : "Publish Blog Post"}
+                  </Button>
+                </form>
               </CardContent>
             </Card>
           </div>

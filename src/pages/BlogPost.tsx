@@ -4,17 +4,86 @@ import { Button } from "@/components/ui/button";
 import { Card, CardContent } from "@/components/ui/card";
 import Navbar from "@/components/Navbar";
 import Footer from "@/components/Footer";
-import { getPostBySlug, getPopularPosts } from "@/data/blogs";
-import { useEffect } from "react";
+import { useEffect, useState } from "react";
+import { supabase } from "@/integrations/supabase/client";
+
+interface BlogPost {
+  id: string;
+  title: string;
+  slug: string;
+  excerpt: string;
+  content: string;
+  category: string;
+  author: string;
+  read_time: string;
+  featured_image: string;
+  created_at: string;
+}
 
 const BlogPost = () => {
   const { slug } = useParams<{ slug: string }>();
-  const post = slug ? getPostBySlug(slug) : null;
-  const popularPosts = getPopularPosts();
+  const [post, setPost] = useState<BlogPost | null>(null);
+  const [popularPosts, setPopularPosts] = useState<BlogPost[]>([]);
+  const [loading, setLoading] = useState(true);
 
   useEffect(() => {
     window.scrollTo(0, 0);
+    
+    const fetchPost = async () => {
+      if (!slug) return;
+      
+      try {
+        // Fetch the specific blog post
+        const { data: postData, error: postError } = await supabase
+          .from('blogs')
+          .select('*')
+          .eq('slug', slug)
+          .eq('status', 'published')
+          .single();
+
+        if (postError) {
+          console.error('Error fetching post:', postError);
+          setPost(null);
+        } else {
+          setPost(postData);
+        }
+
+        // Fetch popular posts
+        const { data: popularData, error: popularError } = await supabase
+          .from('blogs')
+          .select('*')
+          .eq('status', 'published')
+          .order('created_at', { ascending: false })
+          .limit(5);
+
+        if (popularError) {
+          console.error('Error fetching popular posts:', popularError);
+        } else {
+          setPopularPosts(popularData || []);
+        }
+      } catch (error) {
+        console.error('Error:', error);
+      } finally {
+        setLoading(false);
+      }
+    };
+
+    fetchPost();
   }, [slug]);
+
+  if (loading) {
+    return (
+      <div className="min-h-screen bg-gray-50">
+        <Navbar />
+        <div className="pt-20 pb-12">
+          <div className="max-w-4xl mx-auto px-4 sm:px-6 lg:px-8 text-center">
+            <p className="text-lg text-gray-600">Loading blog post...</p>
+          </div>
+        </div>
+        <Footer />
+      </div>
+    );
+  }
 
   if (!post) {
     return (
@@ -48,7 +117,7 @@ const BlogPost = () => {
           {/* Hero Section */}
           <div className="relative">
             <img
-              src={post.image}
+              src={post.featured_image}
               alt={post.title}
               className="w-full h-96 object-cover"
             />
@@ -71,9 +140,9 @@ const BlogPost = () => {
                   <User className="h-4 w-4 mr-1" />
                   <span className="mr-6">{post.author}</span>
                   <Calendar className="h-4 w-4 mr-1" />
-                  <span className="mr-6">{new Date(post.date).toLocaleDateString()}</span>
+                  <span className="mr-6">{new Date(post.created_at).toLocaleDateString()}</span>
                   <Clock className="h-4 w-4 mr-1" />
-                  <span>{post.readTime}</span>
+                  <span>{post.read_time}</span>
                 </div>
               </div>
             </div>
@@ -137,7 +206,7 @@ const BlogPost = () => {
                         <Link key={popularPost.id} to={`/blog/${popularPost.slug}`} className="block group">
                           <div className="flex gap-3">
                             <img
-                              src={popularPost.image}
+                              src={popularPost.featured_image}
                               alt={popularPost.title}
                               className="w-16 h-16 object-cover rounded-lg"
                             />
@@ -145,7 +214,7 @@ const BlogPost = () => {
                               <h4 className="font-medium text-sm text-gray-900 group-hover:text-orange-500 line-clamp-2 mb-1">
                                 {popularPost.title}
                               </h4>
-                              <p className="text-xs text-gray-500">{popularPost.readTime}</p>
+                              <p className="text-xs text-gray-500">{popularPost.read_time}</p>
                             </div>
                           </div>
                         </Link>

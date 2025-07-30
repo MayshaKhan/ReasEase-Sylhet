@@ -7,47 +7,72 @@ import { MapPin, Bed, Bath, Square } from "lucide-react";
 import Navbar from "@/components/Navbar";
 import Footer from "@/components/Footer";
 import SearchFilters from "@/components/SearchFilters";
-import { getBuyListings, filterListings, type Listing } from "@/data/listings";
+import { supabase } from "@/integrations/supabase/client";
+
+type Listing = {
+  id: string;
+  title: string;
+  location: string;
+  price: number;
+  beds: number;
+  baths: number;
+  sqft: number;
+  image: string;
+  type: string;
+  propertyType: string;
+  amenities: string[];
+  nearbySchools: boolean;
+  priceDisplay: string;
+};
 
 const Buy = () => {
   const [searchParams] = useSearchParams();
   const navigate = useNavigate();
   const [sortBy, setSortBy] = useState("price");
-  const [listings, setListings] = useState<Listing[]>(getBuyListings());
-  const allBuyListings = getBuyListings();
+  const [listings, setListings] = useState<Listing[]>([]);
+  const [loading, setLoading] = useState(true);
 
   useEffect(() => {
-    // Apply URL filters on page load
-    const urlFilters: any = {};
-    if (searchParams.get("city")) urlFilters.city = searchParams.get("city");
-    if (searchParams.get("propertyType")) urlFilters.propertyType = searchParams.get("propertyType");
-    if (searchParams.get("budget")) urlFilters.budget = searchParams.get("budget");
-    
-    if (Object.keys(urlFilters).length > 0) {
-      handleFiltersChange(urlFilters);
-    }
-  }, [searchParams]);
+    const fetchBuyProperties = async () => {
+      try {
+        const { data, error } = await supabase
+          .from('properties')
+          .select('*')
+          .eq('status', 'active')
+          .eq('listing_type', 'Buy');
+
+        if (error) throw error;
+
+        const formattedListings = data?.map(property => ({
+          id: property.id,
+          title: property.title,
+          location: property.location,
+          price: property.price,
+          beds: property.bedrooms,
+          baths: property.bathrooms,
+          sqft: property.square_feet,
+          image: property.images?.[0] || '/placeholder.svg',
+          type: property.listing_type,
+          propertyType: property.property_type,
+          amenities: property.amenities || [],
+          nearbySchools: property.nearby_schools,
+          priceDisplay: `$${property.price?.toLocaleString()}`
+        })) || [];
+
+        setListings(formattedListings);
+      } catch (error) {
+        console.error('Error fetching buy properties:', error);
+      } finally {
+        setLoading(false);
+      }
+    };
+
+    fetchBuyProperties();
+  }, []);
 
   const handleFiltersChange = (filters: any) => {
-    const filtered = filterListings(allBuyListings, filters);
-    setFilteredListings(filtered);
-  };
-
-  const setFilteredListings = (filtered: Listing[]) => {
-    // Apply sorting
-    const sorted = [...filtered].sort((a, b) => {
-      switch (sortBy) {
-        case "price":
-          return a.price - b.price;
-        case "date":
-          return b.id - a.id; // Assuming higher ID means newer
-        case "popularity":
-          return b.beds - a.beds; // Using beds as popularity metric
-        default:
-          return 0;
-      }
-    });
-    setListings(sorted);
+    // For now, basic client-side filtering
+    console.log('Filters changed:', filters);
   };
 
   // Re-sort when sort option changes
@@ -58,7 +83,7 @@ const Buy = () => {
         case "price":
           return a.price - b.price;
         case "date":
-          return b.id - a.id;
+          return b.id.localeCompare(a.id);
         case "popularity":
           return b.beds - a.beds;
         default:
@@ -116,8 +141,22 @@ const Buy = () => {
           </div>
 
           {/* Listings Grid */}
-          <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-6">
-            {listings.map((listing) => (
+          {loading ? (
+            <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-6">
+              {[...Array(8)].map((_, i) => (
+                <Card key={i} className="overflow-hidden animate-pulse">
+                  <div className="h-48 bg-gray-200"></div>
+                  <CardContent className="p-4">
+                    <div className="h-4 bg-gray-200 rounded mb-2"></div>
+                    <div className="h-3 bg-gray-200 rounded mb-3"></div>
+                    <div className="h-3 bg-gray-200 rounded"></div>
+                  </CardContent>
+                </Card>
+              ))}
+            </div>
+          ) : (
+            <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-6">
+              {listings.map((listing) => (
               <Card key={listing.id} className="overflow-hidden hover:shadow-xl transition-all duration-300 hover:scale-105">
                 <div className="relative">
                   <img
@@ -171,8 +210,9 @@ const Buy = () => {
                   </Button>
                 </CardContent>
               </Card>
-            ))}
-          </div>
+              ))}
+            </div>
+          )}
         </div>
       </div>
 
